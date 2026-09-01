@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /games/{gameCode} {
+      // Public game state: any authenticated (incl. anonymous) player
+      // can read. Writes should really be locked down further (only
+      // the current turn's player, validated fields, etc.) — start
+      // here and tighten once turn logic is built.
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+
+      // Per-player hidden hand. Only the matching UID can read its
+      // own document. This is the field-level-visibility workaround:
+      // Firestore can't hide individual fields on `games/{gameCode}`,
+      // so hidden data lives in its own gated document instead.
+      match /private/{uid} {
+        allow read: if request.auth.uid == uid;
+        allow write: if request.auth.uid == uid;
+      }
+
+      // A record of a card shown during a "disprove" step — visible
+      // only to the two players involved, not the whole table.
+      match /disproves/{disproveId} {
+        allow read: if request.auth.uid == resource.data.suggesterId
+                     || request.auth.uid == resource.data.discloserId;
+        allow create: if request.auth.uid == resource.data.discloserId;
+      }
+    }
+  }
+}
