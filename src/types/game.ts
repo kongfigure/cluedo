@@ -8,7 +8,7 @@ export interface Player {
   id: string; // matches Firebase Auth UID
   name: string;
   character: string; // e.g. "Miss Scarlet"
-  position: number; // board space index
+  position: string; // room id the player is currently in (placeholder for real board coordinates)
   isReady: boolean;
 }
 
@@ -20,6 +20,16 @@ export interface Card {
   category: CardCategory;
 }
 
+// A suggestion made on a player's turn — visible to the whole table.
+// Disprove/card-checking logic is a separate piece, built later.
+export interface Suggestion {
+  suggesterId: string;
+  suspect: string; // suspect card id
+  weapon: string; // weapon card id
+  room: string; // room card id
+  timestamp: number;
+}
+
 // Public, shared state — everything every player is allowed to see.
 export interface Game {
   id: string; // == gameCode, used as the Firestore doc ID
@@ -28,6 +38,7 @@ export interface Game {
   currentTurnIndex: number;
   phase: GamePhase;
   createdAt: number; // stored as a millis timestamp
+  currentSuggestion?: Suggestion;
 }
 
 // Private, per-player state — lives in the `private` subcollection,
