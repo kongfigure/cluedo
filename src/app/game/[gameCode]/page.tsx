@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/useAuth";
+import { dealCards } from "@/lib/gameActions";
 import { Game } from "@/types/game";
 
 export default function LobbyPage() {
@@ -17,6 +18,7 @@ export default function LobbyPage() {
 
   const [game, setGame] = useState<Game | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (!gameCode) return;
@@ -43,9 +45,19 @@ export default function LobbyPage() {
   const canStart = (game?.players.length ?? 0) >= 3;
 
   async function handleStart() {
-    if (!game) return;
-    const gameRef = doc(db, "games", game.gameCode);
-    await updateDoc(gameRef, { phase: "playing" });
+    if (!game || starting) return;
+    setStarting(true);
+    try {
+      if (game.dealt) {
+        await updateDoc(doc(db, "games", game.gameCode), {
+          phase: "playing",
+        });
+      } else {
+        await dealCards(game.gameCode, game);
+      }
+    } finally {
+      setStarting(false);
+    }
   }
 
   if (notFound) {
@@ -100,10 +112,12 @@ export default function LobbyPage() {
         {isHost ? (
           <button
             onClick={handleStart}
-            disabled={!canStart}
+            disabled={!canStart || starting}
             className="mt-6 w-full rounded-sm bg-brass py-2.5 font-display text-sm text-parchment transition hover:bg-brass-light disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {canStart
+            {starting
+              ? "Dealing cards..."
+              : canStart
               ? "Begin investigation"
               : `Waiting for players (need ${3 - game.players.length} more)`}
           </button>

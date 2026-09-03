@@ -10,6 +10,7 @@ export interface Player {
   character: string; // e.g. "Miss Scarlet"
   position: string; // room id the player is currently in (placeholder for real board coordinates)
   isReady: boolean;
+  eliminated: boolean; // made a wrong accusation — out of suggestions/accusations, still discloses
 }
 
 export type CardCategory = "suspect" | "weapon" | "room";
@@ -30,6 +31,14 @@ export interface Suggestion {
   timestamp: number;
 }
 
+// Public result of a disprove check — who (if anyone) disproved a
+// suggestion. Never carries the card itself; that lives in the gated
+// `disproves` subcollection so only the suggester/discloser can read it.
+export interface DisproveResult {
+  discloserId: string | null; // null means no one could disprove
+  disproveId?: string; // doc id in `disproves`, for the suggester/discloser to look up the card
+}
+
 // Public, shared state — everything every player is allowed to see.
 export interface Game {
   id: string; // == gameCode, used as the Firestore doc ID
@@ -38,7 +47,20 @@ export interface Game {
   currentTurnIndex: number;
   phase: GamePhase;
   createdAt: number; // stored as a millis timestamp
+  dealt: boolean; // guards the one-time deal so it only ever runs once
   currentSuggestion?: Suggestion;
+  // Disprove-check state machine, driven by the game doc since no single
+  // client can read every player's hand: `pendingDiscloserId` names whose
+  // turn it is to check their own hand, `disproveQueue` holds who's left
+  // to ask after them, and `disproveResult` records the outcome.
+  pendingDiscloserId?: string;
+  disproveQueue?: string[];
+  disproveResult?: DisproveResult;
+  // Set once a correct accusation (or last-player-standing) ends the
+  // game. `solutionRevealed` is the public signal that it's now fine for
+  // everyone to see the solution doc, not just via a disprove.
+  winner?: string;
+  solutionRevealed?: boolean;
 }
 
 // Private, per-player state — lives in the `private` subcollection,
@@ -58,4 +80,13 @@ export interface Disprove {
   discloserId: string;
   cardShown: Card;
   createdAt: number;
+}
+
+// The hidden answer, dealt once at game start. Read access isn't locked
+// down yet — that's follow-up work once accusations are built.
+// Path: games/{gameCode}/solution/current
+export interface Solution {
+  suspect: string; // suspect card id
+  weapon: string; // weapon card id
+  room: string; // room card id
 }
